@@ -101,11 +101,26 @@ async fn do_session(ip: String, config: &DoDockerConfig) -> anyhow::Result<()> {
 
     // run shell
     let mut channel = sess.channel_session()?;
-    channel.exec("sh /tmp/dodocker_shell.sh")?;
+    println!("exec shell: sh /tmp/dodocker_shell.sh");
+    channel.exec("sh /tmp/dodocker_shell.sh > /tmp/docker_shell.log")?;
+    println!("exec shell over");
     let mut s = String::new();
     channel.read_to_string(&mut s)?;
+    println!("read channel over");
     println!("{}", s);
     channel.wait_close()?;
+    println!("wait close over");
+    println!("{}", channel.exit_status()?);
+
+    // fetch last 10 lines log
+    let mut channel = sess.channel_session()?;
+    channel.exec("tail -n 10 /tmp/docker_shell.log")?;
+    let mut s = String::new();
+    channel.read_to_string(&mut s)?;
+    println!("read result over");
+    println!("{}", s);
+    channel.wait_close()?;
+    println!("wait close over");
     println!("{}", channel.exit_status()?);
 
     Ok(())
