@@ -81,7 +81,6 @@ async fn do_session(ip: String, config: &DoDockerConfig) -> anyhow::Result<()> {
     sess.set_tcp_stream(tcp);
     sess.handshake()?;
     sess.userauth_pubkey_file("root", None, &Path::new(&config.ssh_prikey), None)?;
-
     sess.authenticated().then(|| println!("authed"));
 
     // upload file config.shell_file to remote
@@ -102,26 +101,27 @@ async fn do_session(ip: String, config: &DoDockerConfig) -> anyhow::Result<()> {
     // run shell
     let mut channel = sess.channel_session()?;
     println!("exec shell: sh /tmp/dodocker_shell.sh");
-    channel.exec("sh /tmp/dodocker_shell.sh > /tmp/docker_shell.log")?;
+    channel.exec("sh /tmp/dodocker_shell.sh > /tmp/docker_shell.log &")?;
     println!("exec shell over");
     let mut s = String::new();
     channel.read_to_string(&mut s)?;
     println!("read channel over");
     println!("{}", s);
-    channel.wait_close()?;
-    println!("wait close over");
-    println!("{}", channel.exit_status()?);
+    channel.close()?;
+    println!("close over");
+    println!("status: {}", channel.exit_status()?);
 
     // fetch last 10 lines log
     let mut channel = sess.channel_session()?;
     channel.exec("tail -n 10 /tmp/docker_shell.log")?;
+    println!("exec shell over");
     let mut s = String::new();
     channel.read_to_string(&mut s)?;
-    println!("read result over");
+    println!("read channel over");
     println!("{}", s);
-    channel.wait_close()?;
-    println!("wait close over");
-    println!("{}", channel.exit_status()?);
+    channel.close()?;
+    println!("close over");
+    println!("status: {}", channel.exit_status()?);
 
     Ok(())
 }
