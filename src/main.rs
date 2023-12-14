@@ -98,30 +98,38 @@ async fn do_session(ip: String, config: &DoDockerConfig) -> anyhow::Result<()> {
     send_c.close()?;
     send_c.wait_close()?;
 
-    // run shell
+    // a workaround way to run in background,
+    // because the ssh2 seems to have deadlock issue when exec long time command
     let mut channel = sess.channel_session()?;
-    println!("exec shell: sh /tmp/dodocker_shell.sh");
-    channel.exec("sh /tmp/dodocker_shell.sh > /tmp/docker_shell.log &")?;
-    println!("exec shell over");
-    let mut s = String::new();
-    channel.read_to_string(&mut s)?;
-    println!("read channel over");
-    println!("{}", s);
-    channel.close()?;
-    println!("close over");
-    println!("status: {}", channel.exit_status()?);
+    println!(" - exec shell: sh /tmp/dodocker_shell.sh");
+    channel.exec("(sh /tmp/dodocker_shell.sh > /tmp/docker_shell.log 2>&1 &)")?;
+    let mut whatever = String::new();
+    channel.read_to_string(&mut whatever)?;
+
+    const CHECK_INTERVAL: u64 = 10;
+    loop {
+        let mut channel = sess.channel_session()?;
+        channel.exec("ps -ef | grep dodocker_shell | grep -v grep | wc -l")?;
+        let mut process_cnt = String::new();
+        channel.read_to_string(&mut process_cnt)?;
+        if process_cnt.trim() == "0" {
+            break;
+        }
+        println!(" - running...");
+        tokio::time::sleep(tokio::time::Duration::from_secs(CHECK_INTERVAL)).await;
+    }
 
     // fetch last 10 lines log
     let mut channel = sess.channel_session()?;
     channel.exec("tail -n 10 /tmp/docker_shell.log")?;
-    println!("exec shell over");
-    let mut s = String::new();
-    channel.read_to_string(&mut s)?;
-    println!("read channel over");
-    println!("{}", s);
+    println!(" - exec shell over");
+    let mut logs = String::new();
+    channel.read_to_string(&mut logs)?;
+    println!(" - read channel over");
+    println!(" - {}", logs);
     channel.close()?;
-    println!("close over");
-    println!("status: {}", channel.exit_status()?);
+    println!(" - close over");
+    println!(" - status: {}", channel.exit_status()?);
 
     Ok(())
 }
